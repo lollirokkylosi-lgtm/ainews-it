@@ -41,6 +41,8 @@ Compila **entrambi** i campi in `.env`:
 4. **Copia la password generata** (formato: `xxxx xxxx xxxx xxxx xxxx xxxx`)
 5. Inseriscila nel campo `WP_APP_PASSWORD` in `.env`
 
+Esempio: `WP_APP_PASSWORD=qilj 4okc y63q vgap`
+
 > Nota: WordPress.com richiede che la password sia lunga almeno 8 caratteri e contenga sia lettere maiuscole che minuscole.
 
 ### 2️⃣ OpenAI API Key
