@@ -1,135 +1,164 @@
-# ainews-it 🤖🇮🇹
+# ainews-it — AI News Aggregator (Italiano)
 
-Aggrega notizie sull'intelligenza artificiale e sulle criptovalute dalle principali fonti in inglese, le traduce in italiano con stile editoriale e le salva come bozze su WordPress — pronte per essere rilette e pubblicate.
+**ainews-it** è un piccolo progetto Python che aggrega notizie in lingua inglese su intelligenza artificiale da fonti RSS, ne filtra la rilevanza, le traduce in italiano con stile editoriale professionale e crea automaticamente bozze (*drafts*) su un sito **WordPress** tramite la REST API.
 
-## Come funziona
+---
 
+## 📦 Installazione
+
+1. Clonare o creare la directory del progetto:
+   ```bash
+   cd /root/.openclaw/workspace/ainews-it
+   ```
+
+2. Installare le dipendenze:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Installare i pacchetti di sistema richiesti (su Debian/Ubuntu):
+   ```bash
+   apt-get update && apt-get install -y python3-dev libxml2-dev libxslt-dev zlib1g-dev
+   ```
+
+---
+
+## ⚙️ Configurazione
+
+### 1. Variabili d’ambiente (`.env`)
+Copia `.env.example` in `.env` e compila i valori:
+
+```env
+# WordPress
+WP_URL=https://your-wordpress-site.com
+WP_USERNAME=your-wp-username
+WP_APP_PASSWORD=xxxx xxxx xxxx xxxx xxxx xxxx
+
+# OpenAI
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o
+
+# Opzionale
+FETCH_INTERVAL_HOURS=6
+MAX_ARTICLES_PER_RUN=10
 ```
-Fonti EN                  Pipeline                 Output
-──────────                ────────                 ──────
-HN / TechCrunch           1. Fetch RSS             Bozza WordPress
-The Verge / Wired    →    2. Filtro rilevanza  →   (titolo IT +
-ArXiv / OpenAI Blog       3. Deduplicazione        corpo IT +
-Anthropic / MIT TR        4. Traduzione IT         fonte originale)
-...                       5. Salva bozza
-                          6. Log locale
-```
 
-Il sistema gira ogni 6 ore (via cron), evita duplicati tramite SQLite, e non pubblica mai automaticamente — sei sempre tu a fare review e pubblicare.
+- **WordPress Application Password**: crea un’app password su WordPress > Impostazioni > Sicurezza > Applicazioni password (o strumenti del genere) e incolla qui. Le bozze verranno create automaticamente.
+- **OPENAI_API_KEY**: chiave API OpenAI con accesso al modello specificato.
 
-## Installazione
+### 2. Configurazione avanzata (`config.yaml`)
+Modifica `config.yaml` se vuoi aggiungere fonti, cambiare soglie di rilevanza o parole chiave.
 
+- `sources` — elenco di RSS da cui leggere.
+- `filtering` — soglia di rilevanza, parole chiave da escludere/boostare, età massima degli articoli.
+- `translation.style_prompt` — prompt stilistico per la traduzione (modificabile).
+- `wordpress` — categoria, tag di default e stato di pubblicazione (di default *draft*).
+
+---
+
+## ▶️ Esecuzione
+
+### Prova in modalità dry-run (consigliata prima della prima esecuzione)
 ```bash
-# Crea e attiva il virtualenv
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Copia il modello di configurazione
-cp .env.example .env
-```
-
-## Configurazione
-
-Compila **entrambi** i campi in `.env`:
-
-### 1️⃣ WordPress Application Password
-
-1. Vai su <https://aicryptoitalia.wordpress.com/wp-admin/profile.php>
-2. Scorri fino a **Application Passwords**
-3. Nome: `ainews-it` → clicca **Aggiungi**
-4. **Copia la password generata** (formato: `xxxx xxxx xxxx xxxx xxxx xxxx`)
-5. Inseriscila nel campo `WP_APP_PASSWORD` in `.env`
-
-Esempio: `WP_APP_PASSWORD=qilj 4okc y63q vgap`
-
-> Nota: WordPress.com richiede che la password sia lunga almeno 8 caratteri e contenga sia lettere maiuscole che minuscole.
-
-### 2️⃣ OpenAI API Key
-
-- Ottienila da <https://platform.openai.com/api-keys>
-- Inseriscila nel campo `OPENAI_API_KEY` in `.env`
-
-### 3️⃣ URL del sito
-
-Il campo `WP_URL` è già impostato su `https://aicryptoitalia.wordpress.com`.
-
-### 4️⃣ Configurazione aggiuntiva (opzionale)
-
-Modifica `config.yaml` se vuoi:
-- Aggiungere nuove fonti RSS
-- Sintonizzare `keywords_boost`/`keywords_exclude`
-- Cambiare il limite di articoli per run (`MAX_ARTICLES_PER_RUN`)
-
-## Utilizzo
-
-```bash
-# Prima volta: testa senza tradurre/pubblicare
 python main.py --dry-run
+```
 
-# Run normale (max 10 articoli)
+Questo scarica i feed, applica i filtri e mostra una tabella con gli articoli che verrebbero processati, **senza** tradurre o pubblicare.
+
+### Esecuzione completa
+```bash
+python main.py
+```
+
+L’elaborazione per ogni articolo include:
+1. Recupero del testo completo (opzionale, richiede `lxml` e accesso HTTP).
+2. Traduzione + adattamento editoriale tramite OpenAI.
+3. Creazione di una bozza WordPress come **draft** (revisione umana richiesta prima della pubblicazione).
+4. Registrazione dell’articolo nel database SQLite per evitare duplicati.
+
+### Limitare il numero di articoli per run
+```bash
 python main.py --limit 5
-
-# Con testo completo per traduzione migliore (più lento)
-python main.py --limit 5 --full-text
-
-# Config personalizzata
-python main.py --config mia-config.yaml
 ```
 
-Aggiungi un crontab ogni 6 ore:
+### Ricerca del testo completo per una traduzione migliore
+```bash
+python main.py --full-text
+```
+
+---
+
+## 🕓 Esecuzione automatica (cron)
+
+Puoi installare un cron job che esegue il programma ogni 6 ore:
 
 ```bash
-# Usa il file setup_cron.sh (lo modifica a tuo piacimento)
-bash setup_cron.sh
+./setup_cron.sh
 ```
 
-I log vanno in `logs/ainews.log`.
-
-## Docker
-
-```bash
-docker build -t ainews-it .
-docker run --env-file .env ainews-it
+Lo script installa una voce crontab del tipo:
+```
+0 */6 * * * cd /root/.openclaw/workspace/ainews-it && python main.py --limit 10 >> logs/ainews.log 2>&1
 ```
 
-## Struttura progetto
+I log verranno scritti in `logs/ainews.log`. Assicurati che il percorso del file `.env` e la cartella `logs/` siano corretti.
+
+---
+
+## 🧩 Struttura del progetto
 
 ```
-ainews-it/
-├── main.py              # Entry point
-├── config.yaml          # Fonti, filtri, stile traduccione
-├── .env.example         # Template credenziali
-├── .env                 # ← CREA QUESTO FILE CON LE TUE CREDENZIALI
+/root/.openclaw/workspace/ainews-it/
+├── README.md
 ├── requirements.txt
+├── .env.example
+├── config.yaml
+├── main.py
 ├── ainews/
-│   ├── fetcher.py       # Fetch RSS da tutte le fonti
-│   ├── filter.py        # Rilevanza + dedup
-│   ├── translator.py    # Traduzione EN→IT via OpenAI
-│   ├── wordpress.py     # Salva bozze via WP REST API
-│   └── storage.py       # SQLite per articoli già visti
-├── setup_cron.sh        # Installa cron job
-└── Dockerfile
+│   ├── __init__.py
+│   ├── fetcher.py       # RSS + API fetching
+│   ├── filter.py        # Relevance filtering + dedup
+│   ├── translator.py    # EN→IT translation via OpenAI
+│   ├── wordpress.py     # WordPress REST API draft creation
+│   └── storage.py       # SQLite for seen articles
+├── setup_cron.sh        # Helper to install as system cron
+└── Dockerfile           # Optional containerized run
 ```
 
-## Aggiungere nuove fonti
+---
 
-Aggiungi una voce in `config.yaml` sotto `sources`:
+## 📝 Aggiungere nuove fonti
+
+Modifica `config.yaml` nella sezione `sources`. Esempio:
 
 ```yaml
-- name: "Nome Fonte"
-  url: "https://esempio.com/rss"
+- name: "My Custom Source"
+  url: "https://example.com/feed/"
   type: rss
   weight: 1.0
 ```
 
-## Note importanti per WordPress.com
+I parametri `weight` influenzano solo l’ordinamento interno (fonti con peso maggiore appariranno prima nei log). La rilevanza dipende principalmente dalle parole chiave.
 
-- Questo sito è ospitato su **WordPress.com**, non su un self-hosted WordPress
-- L'endpoint REST API è `https://aicryptoitalia.wordpress.com/wp-json/wp/v2/posts`
-- Le richieste richiedono autenticazione via Application Password
-- Non è necessario `wp-cron`; il sistema usa solo richieste HTTP regolari
+---
 
-## Licenza
+## ⚠️ Note importanti
 
-MIT
+- **WordPress**: vengono create solo bozze (*draft*). Un amministratore dovrà revisionare e pubblicare.
+- **Database**: il file SQLite (`ainews_seen.db`) mantiene gli URL già processati. Non verrà ritrasmesso a meno che non cambi la query o il filtro.
+- **OpenAI**: il modello e la temperatura sono configurabili tramite `OPENAI_MODEL` e `temperature` nel codice (default 0.4).
+- **Errori**: se una singola API fallisce, l’esecuzione continua con gli altri articoli; l’articulo problematico viene comunque marcato come "già visto" per evitare tentativi ripetuti.
+
+---
+
+## 🛡️ Sicurezza
+
+- Le credenziali di WordPress vanno conservate nell’ambiente (`.env`), mai nel codice.
+- L’accesso alla REST API WordPress usa Basic Auth con app password (sicuro quando combinato con HTTPS).
+- Il programma non invia dati sensibili esternamente oltre che a WordPress ed OpenAI.
+
+---
+
+## 🙌 Ringraziamenti
+
+Realizzato come strumento interno per l’aggregazione e la diffusione controllata di notizie tecnologiche in ambito AI.
